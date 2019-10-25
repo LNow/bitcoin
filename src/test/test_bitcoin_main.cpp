@@ -28,3 +28,16 @@ bool ShutdownRequested()
 {
   return false;
 }
+
+[[noreturn]] void StartVerifying()
+{
+  std::exit(EXIT_SUCCESS);
+}
+[[noreturn]] void AbortVerifying()
+{
+  std::exit(EXIT_SUCCESS);
+}
+bool IsVerifying()
+{
+  return true;
+}
