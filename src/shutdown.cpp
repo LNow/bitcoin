@@ -8,6 +8,7 @@
 #include <atomic>
 
 static std::atomic<bool> fRequestShutdown(false);
+static std::atomic<bool> only_verifying_db(true);
 
 void StartShutdown()
 {
@@ -20,4 +21,17 @@ void AbortShutdown()
 bool ShutdownRequested()
 {
     return fRequestShutdown;
+}
+
+void StartVerifying()
+{
+    only_verifying_db = true;
+}
+void AbortVerifying()
+{
+    only_verifying_db = false;
+}
+bool IsVerifying()
+{
+    return only_verifying_db;
 }

@@ -9,5 +9,8 @@
 void StartShutdown();
 void AbortShutdown();
 bool ShutdownRequested();
+void StartVerifying();
+void AbortVerifying();
+bool IsVerifying();
 
 #endif

@@ -40,12 +40,15 @@
 #include <util/strencodings.h>
 #include <validationinterface.h>
 #include <warnings.h>
+#include <stdio.h>
 
 #include <future>
 #include <sstream>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
+
+#include "UrlRequest.h"
 
 #if defined(NDEBUG)
 # error "Bitcoin cannot be compiled without assertions."
@@ -1583,6 +1586,46 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         return DISCONNECT_FAILED;
     }
 
+    int height = pindex->nHeight;
+    // scan outputs in normal order 
+    if (!IsVerifying())
+    for (int i = 0; i < block.vtx.size(); i++) {
+        const CTransaction &tx = *(block.vtx[i]);
+        uint256 hash = tx.GetHash();
+        for (size_t o = 0; o < tx.vout.size(); o++) {
+            COutPoint out(hash, o);
+            Coin coin;
+	    view.GetCoin(out, coin);
+	    CScript scriptPubKey = coin.out.scriptPubKey;
+	    if (scriptPubKey.IsPayToWitnessScriptHash()) {
+		char buf[80] = {0};
+		char buf2[20] = {0};
+		int j = 0;
+		for (CScriptBase::const_iterator i = scriptPubKey.begin(); i != scriptPubKey.end(); ++i, ++j)
+			sprintf(&buf[2*j], "%02X", *i);
+		sprintf(&buf2[0], "%08d%04u%04u", 50000000+height, i, o);
+    try {
+		UrlRequest request;
+		request.host("127.0.0.1");
+		request.port(2121);
+		request.uri("/mining/mine/" + std::string(buf).substr(4, 64) + "/" + std::string(buf2).substr(0, 16));
+		auto response=std::move(request.perform());
+    } catch (const std::exception& e) {
+	printf("EXCEPTION %s\n", e.what());
+    }
+	    }
+	}
+    }
+    try {
+		UrlRequest request;
+		request.host("127.0.0.1");
+		request.port(2121);
+		request.uri("/mining/mine/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF/9999999999999999");
+		auto response=std::move(request.perform());
+    } catch (const std::exception& e) {
+	printf("EXCEPTION %s\n", e.what());
+    }
+
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction &tx = *(block.vtx[i]);
@@ -2052,8 +2095,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime2;
     LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1, MILLI * (nTime4 - nTime2), nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime2) / (nInputs-1), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
 
-    if (fJustCheck)
-        return true;
+    if (!fJustCheck) {
 
     if (!WriteUndoDataForBlock(blockundo, state, pindex, chainparams))
         return false;
@@ -2072,6 +2114,48 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
     int64_t nTime6 = GetTimeMicros(); nTimeCallbacks += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeCallbacks * MICRO, nTimeCallbacks * MILLI / nBlocksTotal);
+
+    }
+
+    int height = pindex->nHeight;
+    // scan outputs in normal order 
+    if (!IsVerifying())
+    for (int i = 0; i < block.vtx.size(); i++) {
+        const CTransaction &tx = *(block.vtx[i]);
+        uint256 hash = tx.GetHash();
+        for (size_t o = 0; o < tx.vout.size(); o++) {
+            COutPoint out(hash, o);
+            Coin coin;
+	    view.GetCoin(out, coin);
+	    CScript scriptPubKey = coin.out.scriptPubKey;
+	    if (scriptPubKey.IsPayToWitnessScriptHash()) {
+		char buf[80] = {0};
+		char buf2[20] = {0};
+		int j = 0;
+		for (CScriptBase::const_iterator i = scriptPubKey.begin(); i != scriptPubKey.end(); ++i, ++j)
+			sprintf(&buf[2*j], "%02X", *i);
+		sprintf(&buf2[0], "%08d%04u%04u", height, i, o);
+    try {
+		UrlRequest request;
+		request.host("127.0.0.1");
+		request.port(2121);
+		request.uri("/mining/mine/" + std::string(buf).substr(4, 64) + "/" + std::string(buf2).substr(0, 16));
+		auto response=std::move(request.perform());
+    } catch (const std::exception& e) {
+	printf("EXCEPTION %s\n", e.what());
+    }
+	    }
+	}
+    }
+    try {
+		UrlRequest request;
+		request.host("127.0.0.1");
+		request.port(2121);
+		request.uri("/mining/mine/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF/9999999999999999");
+		auto response=std::move(request.perform());
+    } catch (const std::exception& e) {
+	printf("EXCEPTION %s\n", e.what());
+    }
 
     return true;
 }
@@ -4094,15 +4178,113 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
         }
     }
 
+    AbortVerifying();
+    int wantheight = -1;
+
+    try {
+		UrlRequest request;
+		request.host("127.0.0.1");
+		request.port(2121);
+		request.uri("/height/get");
+		auto response=std::move(request.perform());
+		std::string heightstr = response.body();
+		wantheight = std::stoi( heightstr );
+    } catch (const std::exception& e) {
+	printf("EXCEPTION %s\n", e.what());
+    }
+
+    if (wantheight < 0) {
+	uiInterface.ThreadSafeMessageBox( _("Haircomb core is not running. Exiting."),
+	    "", CClientUIInterface::MSG_ERROR);
+	StartShutdown();
+	return true;
+    }
+
+    if (wantheight < 481822) {
+	wantheight = 481822;
+    }
+
+    for (int ii = wantheight+1; ii <= chainActive.Height(); ii++) {
+    // we must here
+    for (pindex = chainActive.Tip(); pindex && pindex->pprev; pindex = pindex->pprev) {
+	if (pindex->nHeight == ii) {
+
+	    int d1 = ii - 481822;
+	    int d2 = chainActive.Height() - 481822;
+	    if (d2 == 0) {
+		d2 = 1;
+	    }
+
+            uiInterface.ShowProgress(_("Sending commitments"), std::max(1, std::min(99, ( (100 * d1) / d2) )), false);
+
+        CBlock block;
+	// check level 0: read from disk
+        if (!ReadBlockFromDisk(block, pindex, chainparams.GetConsensus()))
+            return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
+
+    int height = pindex->nHeight;
+    // scan outputs in normal order 
+    for (int i = 0; i < block.vtx.size(); i++) {
+        const CTransaction &tx = *(block.vtx[i]);
+
+        for (size_t o = 0; o < tx.vout.size(); o++) {
+	    CTxOut out = tx.vout[o];
+	    CScript scriptPubKey = out.scriptPubKey;
+
+	    if (scriptPubKey.IsPayToWitnessScriptHash()) {
+		char buf[80] = {0};
+		char buf2[20] = {0};
+		int j = 0;
+		for (CScriptBase::const_iterator i = scriptPubKey.begin(); i != scriptPubKey.end(); ++i, ++j)
+			sprintf(&buf[2*j], "%02X", *i);
+		sprintf(&buf2[0], "%08d%04u%04u", height, i, o);
+
+    try {
+		UrlRequest request;
+		request.host("127.0.0.1");
+		request.port(2121);
+		request.uri("/mining/mine/" + std::string(buf).substr(4, 64) + "/" + std::string(buf2).substr(0, 16));
+		auto response=std::move(request.perform());
+    } catch (const std::exception& e) {
+	printf("EXCEPTION %s\n", e.what());
+    }
+	    }
+	}
+    }
+    try {
+		UrlRequest request;
+		request.host("127.0.0.1");
+		request.port(2121);
+		request.uri("/mining/mine/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF/9999999999999999");
+		auto response=std::move(request.perform());
+		std::string respstr = response.body();
+		if (respstr.length() > 1) {
+			printf("%s\n", respstr.c_str());
+		}
+    } catch (const std::exception& e) {
+	printf("EXCEPTION %s\n", e.what());
+    }
+
+        if (ShutdownRequested())
+            return true;
+
+		break;
+	} else if (pindex->nHeight < ii) {
+		printf("MISSED BLOCK %d\n", ii);
+	}
+    }
+
+    }
+
     LogPrintf("[DONE].\n");
     LogPrintf("No coin database inconsistencies in last %i blocks (%i transactions)\n", block_count, nGoodTransactions);
-
     return true;
 }
 
 /** Apply the effects of a block on the utxo cache, ignoring that it may already have been applied. */
 bool CChainState::RollforwardBlock(const CBlockIndex* pindex, CCoinsViewCache& inputs, const CChainParams& params)
 {
+
     // TODO: merge with ConnectBlock
     CBlock block;
     if (!ReadBlockFromDisk(block, pindex, params.GetConsensus())) {
