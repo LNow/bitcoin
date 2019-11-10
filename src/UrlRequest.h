@@ -262,7 +262,7 @@ public:
         
         static std::string generateBoundary(){
             struct timeval tv;
-            ::gettimeofday(&tv, nullptr);
+            ::gettimeofday(&tv, static_cast<struct timezone *>(nullptr));
             std::stringstream ss;
             ss<<"==="<<tv.tv_sec<<"_"<<tv.tv_usec<<"===";
             return std::move(ss.str());
