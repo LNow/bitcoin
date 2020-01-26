@@ -5,6 +5,7 @@
 
 #include <validation.h>
 
+#include <key_io.h>
 #include <arith_uint256.h>
 #include <chain.h>
 #include <chainparams.h>
@@ -252,6 +253,23 @@ arith_uint256 nMinimumChainWork;
 
 CFeeRate minRelayTxFee = CFeeRate(DEFAULT_MIN_RELAY_TX_FEE);
 CAmount maxTxFee = DEFAULT_TRANSACTION_MAXFEE;
+CAmount maxP2WSHFee = 0;
+std::string lastBlock0 = "\n";
+std::string lastBlock1 = "\n";
+std::string lastBlock2 = "\n";
+std::string lastBlock3 = "\n";
+std::string lastBlock4 = "\n";
+std::string lastBlock5 = "\n";
+std::string lastBlock6 = "\n";
+std::string lastBlock7 = "\n";
+std::string lastBlock8 = "\n";
+std::string lastBlock9 = "\n";
+std::string lastBlocka = "\n";
+std::string lastBlockb = "\n";
+std::string lastBlockc = "\n";
+std::string lastBlockd = "\n";
+std::string lastBlocke = "\n";
+std::string lastBlockf = "\n";
 
 CBlockPolicyEstimator feeEstimator;
 CTxMemPool mempool(&feeEstimator);
@@ -1593,10 +1611,8 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         const CTransaction &tx = *(block.vtx[i]);
         uint256 hash = tx.GetHash();
         for (size_t o = 0; o < tx.vout.size(); o++) {
-            COutPoint out(hash, o);
-            Coin coin;
-	    view.GetCoin(out, coin);
-	    CScript scriptPubKey = coin.out.scriptPubKey;
+	    CTxOut out = tx.vout[o];
+	    CScript scriptPubKey = out.scriptPubKey;
 	    if (scriptPubKey.IsPayToWitnessScriptHash()) {
 		char buf[80] = {0};
 		char buf2[20] = {0};
@@ -1610,8 +1626,12 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
 		request.port(2121);
 		request.uri("/mining/mine/" + std::string(buf).substr(4, 64) + "/" + std::string(buf2).substr(0, 16));
 		auto response=std::move(request.perform());
+		if (response.statusCode() == 408) {
+        		StartVerifying();
+		}
     } catch (const std::exception& e) {
 	printf("EXCEPTION %s\n", e.what());
+        StartVerifying();
     }
 	    }
 	}
@@ -1622,8 +1642,12 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
 		request.port(2121);
 		request.uri("/mining/mine/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF/9999999999999999");
 		auto response=std::move(request.perform());
+		if (response.statusCode() == 408) {
+        		StartVerifying();
+		}
     } catch (const std::exception& e) {
 	printf("EXCEPTION %s\n", e.what());
+        StartVerifying();
     }
 
     // undo transactions in reverse order
@@ -2124,10 +2148,8 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         const CTransaction &tx = *(block.vtx[i]);
         uint256 hash = tx.GetHash();
         for (size_t o = 0; o < tx.vout.size(); o++) {
-            COutPoint out(hash, o);
-            Coin coin;
-	    view.GetCoin(out, coin);
-	    CScript scriptPubKey = coin.out.scriptPubKey;
+	    CTxOut out = tx.vout[o];
+	    CScript scriptPubKey = out.scriptPubKey;
 	    if (scriptPubKey.IsPayToWitnessScriptHash()) {
 		char buf[80] = {0};
 		char buf2[20] = {0};
@@ -2141,9 +2163,55 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 		request.port(2121);
 		request.uri("/mining/mine/" + std::string(buf).substr(4, 64) + "/" + std::string(buf2).substr(0, 16));
 		auto response=std::move(request.perform());
+		if (response.statusCode() == 408) {
+        		StartVerifying();
+		}
     } catch (const std::exception& e) {
 	printf("EXCEPTION %s\n", e.what());
+        StartVerifying();
     }
+
+
+		for (int iiii = 0; iiii < 16; iiii++) {
+		buf[0] = buf[4+0+0+2*iiii]; buf[4+0+0+2*iiii] = buf[4+62+0-2*iiii]; buf[4+62+0-2*iiii] = buf[0];
+		buf[0] = buf[4+0+1+2*iiii]; buf[4+0+1+2*iiii] = buf[4+62+1-2*iiii]; buf[4+62+1-2*iiii] = buf[0];
+		}
+
+		if (out.nValue <= 200000) {
+			uint256 aaa = uint256S(&buf[4]);
+
+			WitnessV0ScriptHash* shh = new WitnessV0ScriptHash(aaa);
+			auto dest = EncodeDestination(*shh);
+			cout << height;
+			cout << " ";
+			cout << dest;
+			cout << " ";
+			cout << out.nValue;
+			cout << "\n";
+
+		if (out.nValue <= 600) {
+			lastBlockf = lastBlocke;
+			lastBlocke = lastBlockd;
+			lastBlockd = lastBlockc;
+			lastBlockc = lastBlockb;
+			lastBlockb = lastBlocka;
+			lastBlocka = lastBlock9;
+			lastBlock9 = lastBlock8;
+			lastBlock8 = lastBlock7;
+			lastBlock7 = lastBlock6;
+			lastBlock6 = lastBlock5;
+			lastBlock5 = lastBlock4;
+			lastBlock4 = lastBlock3;
+			lastBlock3 = lastBlock2;
+			lastBlock2 = lastBlock1;
+			lastBlock1 = lastBlock0;
+			lastBlock0 = "\nBLK at height " + std::to_string(height) + " " + dest + " " + std::to_string(out.nValue) + " sats";
+		}
+		}
+
+
+
+
 	    }
 	}
     }
@@ -2153,8 +2221,12 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 		request.port(2121);
 		request.uri("/mining/mine/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF/9999999999999999");
 		auto response=std::move(request.perform());
+		if (response.statusCode() == 408) {
+        		StartVerifying();
+		}
     } catch (const std::exception& e) {
 	printf("EXCEPTION %s\n", e.what());
+        StartVerifying();
     }
 
     return true;
@@ -4191,6 +4263,10 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
 		wantheight = std::stoi( heightstr );
     } catch (const std::exception& e) {
 	printf("EXCEPTION %s\n", e.what());
+	uiInterface.ThreadSafeMessageBox( _("Haircomb core request failed. Exiting."),
+	    "", CClientUIInterface::MSG_ERROR);
+	StartShutdown();
+	return true;
     }
 
     if (wantheight < 0) {
@@ -4239,15 +4315,46 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
 			sprintf(&buf[2*j], "%02X", *i);
 		sprintf(&buf2[0], "%08d%04u%04u", height, i, o);
 
+
     try {
 		UrlRequest request;
 		request.host("127.0.0.1");
 		request.port(2121);
 		request.uri("/mining/mine/" + std::string(buf).substr(4, 64) + "/" + std::string(buf2).substr(0, 16));
 		auto response=std::move(request.perform());
+		if (response.statusCode() == 408) {
+	uiInterface.ThreadSafeMessageBox( _("Haircomb core request 408. Exiting."),
+	    "", CClientUIInterface::MSG_ERROR);
+	StartShutdown();
+	return true;
+		}
     } catch (const std::exception& e) {
 	printf("EXCEPTION %s\n", e.what());
+	uiInterface.ThreadSafeMessageBox( _("Haircomb core request failed. Exiting."),
+	    "", CClientUIInterface::MSG_ERROR);
+	StartShutdown();
+	return true;
     }
+
+		for (int iiii = 0; iiii < 16; iiii++) {
+		buf[0] = buf[4+0+0+2*iiii]; buf[4+0+0+2*iiii] = buf[4+62+0-2*iiii]; buf[4+62+0-2*iiii] = buf[0];
+		buf[0] = buf[4+0+1+2*iiii]; buf[4+0+1+2*iiii] = buf[4+62+1-2*iiii]; buf[4+62+1-2*iiii] = buf[0];
+		}
+
+		if (out.nValue <= 200000) {
+			uint256 aaa = uint256S(&buf[4]);
+
+			WitnessV0ScriptHash* shh = new WitnessV0ScriptHash(aaa);
+			cout << ii;
+			cout << " ";
+			cout << EncodeDestination(*shh);
+			cout << " ";
+			cout << out.nValue;
+			cout << "\n";
+
+		}
+
+
 	    }
 	}
     }
@@ -4257,12 +4364,22 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
 		request.port(2121);
 		request.uri("/mining/mine/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF/9999999999999999");
 		auto response=std::move(request.perform());
+		if (response.statusCode() == 408) {
+			uiInterface.ThreadSafeMessageBox( _("Haircomb core request 408. Exiting."),
+			    "", CClientUIInterface::MSG_ERROR);
+			StartShutdown();
+			return true;
+		}
 		std::string respstr = response.body();
 		if (respstr.length() > 1) {
 			printf("%s\n", respstr.c_str());
 		}
     } catch (const std::exception& e) {
 	printf("EXCEPTION %s\n", e.what());
+	uiInterface.ThreadSafeMessageBox( _("Haircomb core request failed. Exiting."),
+	    "", CClientUIInterface::MSG_ERROR);
+	StartShutdown();
+	return true;
     }
 
         if (ShutdownRequested())

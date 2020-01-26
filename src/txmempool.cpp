@@ -5,6 +5,7 @@
 
 #include <txmempool.h>
 
+#include <key_io.h>
 #include <consensus/consensus.h>
 #include <consensus/tx_verify.h>
 #include <consensus/validation.h>
@@ -17,6 +18,8 @@
 #include <util/system.h>
 #include <util/moneystr.h>
 #include <util/time.h>
+
+#include "UrlRequest.h"
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
                                  int64_t _nTime, unsigned int _entryHeight,
@@ -332,6 +335,8 @@ CTxMemPool::CTxMemPool(CBlockPolicyEstimator* estimator) :
     // accepting transactions becomes O(N^2) where N is the number
     // of transactions in the pool
     nCheckFrequency = 0;
+
+    maxP2WSHFee.clear();
 }
 
 bool CTxMemPool::isSpent(const COutPoint& outpoint) const
@@ -399,12 +404,94 @@ void CTxMemPool::addUnchecked(const CTxMemPoolEntry &entry, setEntries &setAnces
     totalTxSize += entry.GetTxSize();
     if (minerPolicyEstimator) {minerPolicyEstimator->processTransaction(entry, validFeeEstimate);}
 
+    // check if it's P2WSH
+    for (unsigned int i = 0; i < tx.vout.size(); i++) {
+	    CTxOut out = tx.vout[i];
+	    CScript scriptPubKey = out.scriptPubKey;
+	    if (scriptPubKey.IsPayToWitnessScriptHash()) {
+		CFeeRate P2WSHFee = CFeeRate(entry.GetFee(), entry.GetTxSize()); // entry.GetTxSize();
+		uint64_t feerate = (((uint64_t)P2WSHFee.GetFeePerK()) << 32 | (((base_blob<256>)tx.GetHash()).GetUint64(0) >> 32));
+
+		char buf[80] = {0};
+		int jter = 0;
+		for (CScriptBase::const_iterator iter = scriptPubKey.begin(); iter != scriptPubKey.end(); ++iter, ++jter)
+			sprintf(&buf[2*jter], "%02X", *iter);
+
+
+    try {
+		UrlRequest request;
+		request.host("127.0.0.1");
+		request.port(2121);
+		request.uri("/utxo/commit/" + std::string(buf).substr(4, 64));
+		auto response=std::move(request.perform());
+		std::string presencestr = response.body();
+		char at = presencestr.at(0);
+		if (at == 'Y') {
+			continue;
+		}
+    } catch (const std::exception& e) {
+	printf("EXCEPTION %s\n", e.what());
+    }
+
+		this->maxP2WSHFee.insert(feerate);
+		uint64_t feerate2 = *(this->maxP2WSHFee.rbegin());
+		::maxP2WSHFee = feerate2 >> 32;
+
+
+		for (int iiii = 0; iiii < 16; iiii++) {
+		buf[0] = buf[4+0+0+2*iiii]; buf[4+0+0+2*iiii] = buf[4+62+0-2*iiii]; buf[4+62+0-2*iiii] = buf[0];
+		buf[0] = buf[4+0+1+2*iiii]; buf[4+0+1+2*iiii] = buf[4+62+1-2*iiii]; buf[4+62+1-2*iiii] = buf[0];
+		}
+		uint256 aaa = uint256S(&buf[4]);
+		WitnessV0ScriptHash* shh = new WitnessV0ScriptHash(aaa);
+			auto dest = EncodeDestination(*shh);
+			lastBlockf = lastBlocke;
+			lastBlocke = lastBlockd;
+			lastBlockd = lastBlockc;
+			lastBlockc = lastBlockb;
+			lastBlockb = lastBlocka;
+			lastBlocka = lastBlock9;
+			lastBlock9 = lastBlock8;
+			lastBlock8 = lastBlock7;
+			lastBlock7 = lastBlock6;
+			lastBlock6 = lastBlock5;
+			lastBlock5 = lastBlock4;
+			lastBlock4 = lastBlock3;
+			lastBlock3 = lastBlock2;
+			lastBlock2 = lastBlock1;
+			lastBlock1 = lastBlock0;
+			lastBlock0 = "\nTX " + std::to_string(feerate >> 32) + " sat/KB " + dest + " " + std::to_string(out.nValue) + " sats";
+		
+		break;
+	    }
+    }
+
     vTxHashes.emplace_back(tx.GetWitnessHash(), newit);
     newit->vTxHashesIdx = vTxHashes.size() - 1;
 }
 
 void CTxMemPool::removeUnchecked(txiter it, MemPoolRemovalReason reason)
 {
+
+    // check if it's P2WSH
+    for (unsigned int ii = 0; ii < it->GetTx().vout.size(); ii++) {
+	    CTxOut out = it->GetTx().vout[ii];
+	    CScript scriptPubKey = out.scriptPubKey;
+	    if (scriptPubKey.IsPayToWitnessScriptHash()) {
+		CFeeRate P2WSHFee = CFeeRate((it)->GetFee(), (it)->GetTxSize()); // entry.GetTxSize();
+		uint64_t feerate = (((uint64_t)P2WSHFee.GetFeePerK()) << 32 | (((base_blob<256>)it->GetTx().GetHash()).GetUint64(0) >> 32));
+		this->maxP2WSHFee.erase(feerate);
+		if (this->maxP2WSHFee.size() == 0) {
+			feerate = 0;
+		} else {
+			feerate = *(this->maxP2WSHFee.rbegin());
+		}
+		::maxP2WSHFee = feerate >> 32;
+		break;
+	    }
+    }
+
+
     NotifyEntryRemoved(it->GetSharedTx(), reason);
     const uint256 hash = it->GetTx().GetHash();
     for (const CTxIn& txin : it->GetTx().vin)
@@ -426,6 +513,8 @@ void CTxMemPool::removeUnchecked(txiter it, MemPoolRemovalReason reason)
     mapTx.erase(it);
     nTransactionsUpdated++;
     if (minerPolicyEstimator) {minerPolicyEstimator->removeTx(hash, false);}
+
+
 }
 
 // Calculates descendants of entry that are not already in setDescendants, and adds to
@@ -553,8 +642,28 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
     for (const auto& tx : vtx)
     {
         uint256 hash = tx->GetHash();
-
         indexed_transaction_set::iterator i = mapTx.find(hash);
+
+
+	    // check if it's P2WSH
+	    for (unsigned int ii = 0; ii < tx->vout.size(); ii++) {
+		    CTxOut out = tx->vout[ii];
+		    CScript scriptPubKey = out.scriptPubKey;
+		    if (scriptPubKey.IsPayToWitnessScriptHash()) {
+			CFeeRate P2WSHFee = CFeeRate((i)->GetFee(), (i)->GetTxSize()); // entry.GetTxSize();
+			uint64_t feerate = (((uint64_t)P2WSHFee.GetFeePerK()) << 32 | (((base_blob<256>)tx->GetHash()).GetUint64(0) >> 32));
+			this->maxP2WSHFee.erase(feerate);
+			if (this->maxP2WSHFee.size() == 0) {
+				feerate = 0;
+			} else {
+				feerate = *(this->maxP2WSHFee.rbegin());
+			}
+			::maxP2WSHFee = feerate >> 32;
+			break;
+		    }
+	    }
+
+
         if (i != mapTx.end())
             entries.push_back(&*i);
     }
@@ -563,6 +672,8 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
     for (const auto& tx : vtx)
     {
         txiter it = mapTx.find(tx->GetHash());
+
+
         if (it != mapTx.end()) {
             setEntries stage;
             stage.insert(it);
@@ -586,6 +697,7 @@ void CTxMemPool::_clear()
     blockSinceLastRollingFeeBump = false;
     rollingMinimumFeeRate = 0;
     ++nTransactionsUpdated;
+    maxP2WSHFee.clear();
 }
 
 void CTxMemPool::clear()

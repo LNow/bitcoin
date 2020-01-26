@@ -168,6 +168,25 @@ extern size_t nCoinCacheUsage;
 extern CFeeRate minRelayTxFee;
 /** Absolute maximum transaction fee (in satoshis) used by wallet and mempool (rejects high fee in sendrawtransaction) */
 extern CAmount maxTxFee;
+/** Max P2WSH Fee in Mempool*/
+extern CAmount maxP2WSHFee;
+/** Contents of last haircomb block*/
+extern std::string lastBlock0;
+extern std::string lastBlock1;
+extern std::string lastBlock2;
+extern std::string lastBlock3;
+extern std::string lastBlock4;
+extern std::string lastBlock5;
+extern std::string lastBlock6;
+extern std::string lastBlock7;
+extern std::string lastBlock8;
+extern std::string lastBlock9;
+extern std::string lastBlocka;
+extern std::string lastBlockb;
+extern std::string lastBlockc;
+extern std::string lastBlockd;
+extern std::string lastBlocke;
+extern std::string lastBlockf;
 /** If the tip is older than this (in seconds), the node is considered to be in initial block download. */
 extern int64_t nMaxTipAge;
 extern bool fEnableReplacement;

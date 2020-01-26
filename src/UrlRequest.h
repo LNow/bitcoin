@@ -122,24 +122,6 @@ using std::endl;
 
 #ifdef _WIN32
 
-int gettimeofday(struct timeval * tp, struct timezone * tzp)
-{
-    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
-    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
-    
-    SYSTEMTIME  system_time;
-    FILETIME    file_time;
-    uint64_t    time;
-    
-    GetSystemTime(&system_time);
-    SystemTimeToFileTime(&system_time, &file_time);
-    time = ((uint64_t)file_time.dwLowDateTime);
-    time += ((uint64_t)file_time.dwHighDateTime) << 32;
-    
-    tp->tv_sec = (long)((time - EPOCH) / 10000000L);
-    tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
-    return 0;
-}
 
 /*void SetNonBlocking(int filehandle)
  {
@@ -262,7 +244,29 @@ public:
         
         static std::string generateBoundary(){
             struct timeval tv;
-            ::gettimeofday(&tv, nullptr);
+#ifdef _WIN32
+{
+    struct timeval * tp = &tv;
+
+    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
+    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
+    
+    SYSTEMTIME  system_time;
+    FILETIME    file_time;
+    uint64_t    time;
+    
+    GetSystemTime(&system_time);
+    SystemTimeToFileTime(&system_time, &file_time);
+    time = ((uint64_t)file_time.dwLowDateTime);
+    time += ((uint64_t)file_time.dwHighDateTime) << 32;
+    
+    tp->tv_sec = (long)((time - EPOCH) / 10000000L);
+    tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
+}
+
+#elif
+            ::gettimeofday(&tv, static_cast<struct timezone *>(nullptr));
+#endif
             std::stringstream ss;
             ss<<"==="<<tv.tv_sec<<"_"<<tv.tv_usec<<"===";
             return std::move(ss.str());
