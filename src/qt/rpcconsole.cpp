@@ -875,14 +875,14 @@ void RPCConsole::setNumBlocks(int count, const QDateTime& blockDate, double nVer
     }
 }
 
-void RPCConsole::setMempoolSize(long numberOfTxs, size_t dynUsage)
+void RPCConsole::setMempoolSize(long numberOfTxs, size_t dynUsage, std::string lastblocks)
 {
-    ui->mempoolNumberTxs->setText(QString::number(numberOfTxs));
+    ui->mempoolNumberTxs->setText(QString::number(numberOfTxs) + " sat/KB");
 
     if (dynUsage < 1000000)
-        ui->mempoolSize->setText(QString::number(dynUsage/1000.0, 'f', 2) + " KB");
+        ui->mempoolSize->setText(QString::number(dynUsage/1000.0, 'f', 2) + " KB" + QString::fromStdString(lastblocks));
     else
-        ui->mempoolSize->setText(QString::number(dynUsage/1000000.0, 'f', 2) + " MB");
+        ui->mempoolSize->setText(QString::number(dynUsage/1000000.0, 'f', 2) + " MB" + QString::fromStdString(lastblocks));
 }
 
 void RPCConsole::on_lineEdit_returnPressed()
