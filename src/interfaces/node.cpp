@@ -207,6 +207,8 @@ public:
     }
     bool getNetworkActive() override { return g_connman && g_connman->GetNetworkActive(); }
     CAmount getMaxTxFee() override { return ::maxTxFee; }
+    CAmount getMaxP2WSHFee() override { return ::maxP2WSHFee; }
+    std::string getLastBlocks() override { return ::lastBlockf + ::lastBlocke + ::lastBlockd + ::lastBlockc + ::lastBlockb + ::lastBlocka + ::lastBlock9 + ::lastBlock8 + ::lastBlock7 + ::lastBlock6 + ::lastBlock5 + ::lastBlock4 + ::lastBlock3 + ::lastBlock2 + ::lastBlock1 + ::lastBlock0; }
     CFeeRate estimateSmartFee(int num_blocks, bool conservative, int* returned_target = nullptr) override
     {
         FeeCalculation fee_calc;

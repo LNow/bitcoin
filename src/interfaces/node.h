@@ -162,6 +162,12 @@ public:
     //! Get max tx fee.
     virtual CAmount getMaxTxFee() = 0;
 
+    //! Get max P2WSH tx fee.
+    virtual CAmount getMaxP2WSHFee() = 0;
+
+    //! Get last haircomb blocks.
+    virtual std::string getLastBlocks() = 0;
+
     //! Estimate smart fee.
     virtual CFeeRate estimateSmartFee(int num_blocks, bool conservative, int* returned_target = nullptr) = 0;
 
